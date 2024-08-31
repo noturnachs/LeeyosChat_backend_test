@@ -170,6 +170,7 @@ function areSimilar(word1, word2) {
 
 const roomMessages = {};
 const createdRooms = []; // Array to store created room names
+const userRooms = new Map(); // Temporary storage for user rooms
 
 io.on("connection", (socket) => {
   console.log(
@@ -222,6 +223,9 @@ io.on("connection", (socket) => {
 
     socket.username = username;
     socket.interest = interest;
+
+    // Store the user's room in the userRooms map
+    userRooms.set(socket.id, null); // Initialize with null room
     waitingQueue.set(socket.id, {
       socket,
       username,
@@ -260,6 +264,23 @@ io.on("connection", (socket) => {
         message: "Room not found.", // Message if the room does not exist
         rooms: createdRooms, // Return the list of all created rooms for context
       });
+    }
+  });
+
+  // Listen for the joinRoom event
+  socket.on("joinRoom", ({ room }) => {
+    socket.join(room);
+    userRooms.set(socket.id, room); // Store the room for the user
+    console.log(`User ${socket.visitorId} joined room ${room}`);
+  });
+
+  socket.on("reconnect", () => {
+    const room = userRooms.get(socket.id); // Check if the user was in a room
+    if (room) {
+      socket.join(room); // Rejoin the room
+      console.log(`User rejoined room: ${room}`);
+      // Optionally, you can send the latest messages to the user
+      // fetchLatestMessagesForRoom(room); // Implement this function if needed
     }
   });
 
@@ -345,7 +366,16 @@ io.on("connection", (socket) => {
     console.log(
       `User with socket ID ${socket.id} (Visitor ID: ${socket.visitorId}) disconnected`
     );
-    handleLeaveRoom(socket);
+    const room = userRooms.get(socket.id); // Get the room the user was in
+    if (room) {
+      console.log(`User was in room: ${room}`);
+      // Optionally, you can emit a message to the room that the user has left
+      io.to(room).emit("message", {
+        username: "System",
+        messageText: `${socket.username} has left the chat.`,
+      });
+    }
+    userRooms.delete(socket.id); // Remove the user from the map
     userCount--;
     io.emit("userCountUpdate", userCount);
   });

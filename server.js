@@ -335,13 +335,6 @@ io.on("connection", (socket) => {
     console.log(
       `User with socket ID ${socket.id} (Visitor ID: ${socket.visitorId}) disconnected`
     );
-    // Emit a custom event to notify other users in the room
-    const room = Array.from(waitingQueue.values()).find(
-      (user) => user.socket.id === socket.id
-    )?.room; // Get the room of the disconnected user
-    if (room) {
-      io.to(room).emit("userDisconnected", { username: socket.username });
-    }
     handleLeaveRoom(socket);
     userCount--;
     io.emit("userCountUpdate", userCount);

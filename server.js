@@ -251,14 +251,14 @@ io.on("connection", (socket) => {
     if (roomMessages[room]) {
       res.status(200).json({
         success: true,
-        messages: roomMessages[room],
-        rooms: createdRooms,
+        messages: roomMessages[room], // Return messages for the specified room
+        rooms: createdRooms, // Return the list of all created rooms
       });
     } else {
       res.status(404).json({
         success: false,
-        message: "Room not found.",
-        rooms: createdRooms,
+        message: "Room not found.", // Message if the room does not exist
+        rooms: createdRooms, // Return the list of all created rooms for context
       });
     }
   });

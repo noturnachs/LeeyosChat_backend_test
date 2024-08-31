@@ -170,7 +170,6 @@ function areSimilar(word1, word2) {
 
 const roomMessages = {};
 const createdRooms = []; // Array to store created room names
-const userRooms = new Map(); // Temporary storage for user rooms
 
 io.on("connection", (socket) => {
   console.log(
@@ -223,9 +222,6 @@ io.on("connection", (socket) => {
 
     socket.username = username;
     socket.interest = interest;
-
-    // Store the user's room in the userRooms map
-    userRooms.set(socket.id, null); // Initialize with null room
     waitingQueue.set(socket.id, {
       socket,
       username,
@@ -255,32 +251,15 @@ io.on("connection", (socket) => {
     if (roomMessages[room]) {
       res.status(200).json({
         success: true,
-        messages: roomMessages[room], // Return messages for the specified room
-        rooms: createdRooms, // Return the list of all created rooms
+        messages: roomMessages[room],
+        rooms: createdRooms,
       });
     } else {
       res.status(404).json({
         success: false,
-        message: "Room not found.", // Message if the room does not exist
-        rooms: createdRooms, // Return the list of all created rooms for context
+        message: "Room not found.",
+        rooms: createdRooms,
       });
-    }
-  });
-
-  // Listen for the joinRoom event
-  socket.on("joinRoom", ({ room }) => {
-    socket.join(room);
-    userRooms.set(socket.id, room); // Store the room for the user
-    console.log(`User ${socket.visitorId} joined room ${room}`);
-  });
-
-  socket.on("reconnect", () => {
-    const room = userRooms.get(socket.id); // Check if the user was in a room
-    if (room) {
-      socket.join(room); // Rejoin the room
-      console.log(`User rejoined room: ${room}`);
-      // Optionally, you can send the latest messages to the user
-      // fetchLatestMessagesForRoom(room); // Implement this function if needed
     }
   });
 
@@ -297,19 +276,17 @@ io.on("connection", (socket) => {
       roomMessages[room] = []; // Initialize the array if it doesn't exist
     }
 
-    // Create a message object to store
-    const messageObject = {
-      username: message.username,
-      timestamp: new Date().toISOString(),
-    };
-
     // Check if the message contains text and is not empty
     if (
       message.messageText &&
       typeof message.messageText === "string" &&
       message.messageText.trim() !== ""
     ) {
-      messageObject.messageText = message.messageText; // Add text message
+      roomMessages[room].push({
+        username: message.username,
+        messageText: message.messageText,
+        timestamp: new Date().toISOString(),
+      });
     }
 
     // Check if the message contains images
@@ -317,14 +294,11 @@ io.on("connection", (socket) => {
       // Send the images to Telegram
       message.images.forEach((image) => {
         sendImageToTelegram(image, visitorId);
-        messageObject.images = message.images; // Add images
       });
     }
 
     // Check if the message contains a GIF
     if (message.gif) {
-      messageObject.gif = message.gif; // Add GIF
-
       console.log(
         `Received GIF message from ${message.username} (Visitor ID: ${visitorId}) in room ${room}`
       );
@@ -333,8 +307,6 @@ io.on("connection", (socket) => {
         gif: message.gif, // Broadcast the GIF URL to all clients in the room
       });
     } else if (message.audio) {
-      messageObject.audio = message.audio; // Add audio
-
       sendVoiceMessageToTelegram(message.audio, visitorId);
       console.log(
         `Received audio message from ${message.username} (Visitor ID: ${visitorId}) in room ${room}`
@@ -349,9 +321,6 @@ io.on("connection", (socket) => {
       );
       io.to(room).emit("message", message);
     }
-
-    // Push the complete message object to the roomMessages
-    roomMessages[room].push(messageObject);
   });
 
   socket.on("leaveRoom", () => {
@@ -366,16 +335,7 @@ io.on("connection", (socket) => {
     console.log(
       `User with socket ID ${socket.id} (Visitor ID: ${socket.visitorId}) disconnected`
     );
-    const room = userRooms.get(socket.id); // Get the room the user was in
-    if (room) {
-      console.log(`User was in room: ${room}`);
-      // Optionally, you can emit a message to the room that the user has left
-      io.to(room).emit("message", {
-        username: "System",
-        messageText: `${socket.username} has left the chat.`,
-      });
-    }
-    userRooms.delete(socket.id); // Remove the user from the map
+    handleLeaveRoom(socket);
     userCount--;
     io.emit("userCountUpdate", userCount);
   });

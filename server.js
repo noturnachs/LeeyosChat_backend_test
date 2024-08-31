@@ -276,17 +276,19 @@ io.on("connection", (socket) => {
       roomMessages[room] = []; // Initialize the array if it doesn't exist
     }
 
+    // Create a message object to store
+    const messageObject = {
+      username: message.username,
+      timestamp: new Date().toISOString(),
+    };
+
     // Check if the message contains text and is not empty
     if (
       message.messageText &&
       typeof message.messageText === "string" &&
       message.messageText.trim() !== ""
     ) {
-      roomMessages[room].push({
-        username: message.username,
-        messageText: message.messageText,
-        timestamp: new Date().toISOString(),
-      });
+      messageObject.messageText = message.messageText; // Add text message
     }
 
     // Check if the message contains images
@@ -294,11 +296,14 @@ io.on("connection", (socket) => {
       // Send the images to Telegram
       message.images.forEach((image) => {
         sendImageToTelegram(image, visitorId);
+        messageObject.images = message.images; // Add images
       });
     }
 
     // Check if the message contains a GIF
     if (message.gif) {
+      messageObject.gif = message.gif; // Add GIF
+
       console.log(
         `Received GIF message from ${message.username} (Visitor ID: ${visitorId}) in room ${room}`
       );
@@ -307,6 +312,8 @@ io.on("connection", (socket) => {
         gif: message.gif, // Broadcast the GIF URL to all clients in the room
       });
     } else if (message.audio) {
+      messageObject.audio = message.audio; // Add audio
+
       sendVoiceMessageToTelegram(message.audio, visitorId);
       console.log(
         `Received audio message from ${message.username} (Visitor ID: ${visitorId}) in room ${room}`
@@ -321,6 +328,9 @@ io.on("connection", (socket) => {
       );
       io.to(room).emit("message", message);
     }
+
+    // Push the complete message object to the roomMessages
+    roomMessages[room].push(messageObject);
   });
 
   socket.on("leaveRoom", () => {
